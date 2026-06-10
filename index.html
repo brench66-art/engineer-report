@@ -1,66 +1,1209 @@
-ОТЧЁТ ИНЖЕНЕРА
-ПАНЕЛЬ ДИРЕКТОРА
-ИНЖЕНЕРНЫЙ ОТЧЁТ
-Регион · 9 клубов
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Инженерный отчёт</title>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// ЕЖЕДНЕВНЫЙ ОТЧЁТ
-Фиксация
-выезда
-*
-ИНЖЕНЕР
-            — Выбери ФИО —
-            Быстров Андрей
-            Якубштат Максим
-            Кокшаров Денис
-            Другой сотрудник (ввести вручную)
-          
-*
-КЛУБ И ДАТА
-              — Клуб / объект —
-              Модум
-              Марата
-              Кондратьевский
-              Зеленина
-              Велотрек
-              Девяткино
-              Ушинского
-              Новоселье
-              Кудрово
-              Новый объект (ввести вручную)
-            
-*
-ТИП РАБОТЫ
-            — Тип —
-            Плановый выезд
-            Аварийный выезд
-            Иное (ввести вручную)
-          
-*
-ПРИОРИТЕТ
+  const firebaseConfig = {
+    apiKey: "AIzaSyCGHRfa_V_wbprPCIWJyVLdf5Zmy5PP208",
+    authDomain: "engineer-reports-18e4b.firebaseapp.com",
+    projectId: "engineer-reports-18e4b",
+    storageBucket: "engineer-reports-18e4b.firebasestorage.app",
+    messagingSenderId: "721587687308",
+    appId: "1:721587687308:web:0a382d04deb8b008be10a9"
+  };
 
-🔴 Критично
+  const fbApp = initializeApp(firebaseConfig);
+  const db = getFirestore(fbApp);
+  window._db = db;
+  window._col = (name) => collection(db, name);
+  window._addDoc = addDoc;
+  window._getDocs = getDocs;
+  window._docRef = (path, id) => doc(db, path, id);
+  window._updateDoc = updateDoc;
+  window._deleteDoc = deleteDoc;
+  window._query = query;
+  window._orderBy = orderBy;
+  window._onSnapshot = onSnapshot;
+  window._fbReady = true;
 
-🟡 Плановое
+  window._startReportsListener = function() {
+    if (window._unsubReports) window._unsubReports();
+    const q = query(collection(db, 'reports'), orderBy('ts', 'desc'));
+    window._unsubReports = onSnapshot(q, (snapshot) => {
+      window._cachedReports = snapshot.docs.map(d => ({ ...d.data(), _docId: d.id }));
+      if (document.getElementById('admin-dashboard') && document.getElementById('admin-dashboard').style.display !== 'none') {
+        renderReports();
+      }
+    });
+  };
+</script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
 
-🔵 Мониторинг
-*
-ЧТО ОБСЛЕДОВАЛ
-ЗАДАЧИ ОТКРЫТЫ
-ЗАДАЧИ ЗАКРЫТЫ
-СТАТУС ПО КП И СЧЕТАМ
-            — Выбери статус —
-            Запрошено, дата получения…
-            Не запрошено, требует уточнения…
-            Иное (ввести вручную)
-          
-ПОДРЯДЧИКИ
-ТРЕБУЕТ РЕШЕНИЯ ДИРЕКТОРА
-ФОТО
+  :root {
+    --bg: #0d0f12;
+    --surface: #141618;
+    --surface2: #1c1f23;
+    --border: #2a2d32;
+    --accent: #e8c84a;
+    --accent2: #4a9ee8;
+    --danger: #e84a4a;
+    --success: #4ae87a;
+    --text: #e8e4dc;
+    --muted: #6b7280;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+    --copper: 'Copperplate', 'Copperplate Gothic Light', fantasy;
+  }
 
-📷
-Прикрепи фото — до и после, проблемные зоны
-JPG, PNG · до 5 файлов
-*
-ТВОЙ EMAIL (ДЛЯ ПОЛУЧЕНИЯ ТЗ)
-// email сохраняется на этом устройстве автоматически
-Отправить отчёт
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(232,200,74,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(232,200,74,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .page { display: none; position: relative; z-index: 1; min-height: 100vh; }
+  .page.active { display: block; }
+
+  /* NAV */
+  .nav-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(12px);
+  }
+  .nav-tab {
+    padding: 14px 24px;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    cursor: pointer;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: none;
+    transition: all 0.15s;
+  }
+  .nav-tab:hover { color: var(--text); }
+  .nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* HEADER */
+  .header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(13,15,18,0.95);
+  }
+  .header-title {
+    font-family: var(--mono);
+    font-size: 14px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+  .header-sub { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 1px; margin-top: 2px; }
+  .header-time { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+  /* FORM */
+  .form-container { max-width: 780px; margin: 0 auto; padding: 48px 24px 80px; }
+  .page-label { font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 8px; }
+  .page-title { font-family: var(--copper); font-size: 48px; letter-spacing: 4px; color: var(--text); line-height: 1.1; margin-bottom: 40px; font-weight: 300; }
+
+  .section { margin-bottom: 32px; animation: slideIn 0.4s ease both; }
+  .section:nth-child(2){animation-delay:.05s} .section:nth-child(3){animation-delay:.10s}
+  .section:nth-child(4){animation-delay:.15s} .section:nth-child(5){animation-delay:.20s}
+  .section:nth-child(6){animation-delay:.25s} .section:nth-child(7){animation-delay:.30s}
+  .section:nth-child(8){animation-delay:.35s}
+
+  @keyframes slideIn { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+
+  .section-label {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+  }
+  .section-label::after { content:''; flex:1; height:1px; background:var(--border); }
+  .section-label .req { color: var(--accent); font-size: 14px; line-height: 1; }
+
+  .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  input, select, textarea {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 13px 16px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+    -webkit-appearance: none;
+  }
+  input::placeholder, textarea::placeholder { color: var(--muted); font-size: 14px; }
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(232,200,74,0.1);
+    background: var(--surface2);
+  }
+  input.error, select.error, textarea.error {
+    border-color: var(--danger) !important;
+    box-shadow: 0 0 0 3px rgba(232,74,74,0.12) !important;
+  }
+  select option { background: var(--surface2); }
+  textarea { resize: vertical; min-height: 100px; line-height: 1.6; }
+
+  /* SELECT + MANUAL INPUT COMBO */
+  .combo-wrap { position: relative; }
+  .combo-manual {
+    margin-top: 8px;
+    display: none;
+  }
+  .combo-manual.show { display: block; }
+  .combo-hint {
+    font-family: var(--mono); font-size: 10px; color: var(--muted);
+    margin-top: 5px; letter-spacing: 1px;
+  }
+
+  /* PRIORITY */
+  .priority-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .priority-option { position: relative; flex: 1; min-width: 110px; }
+  .priority-option input[type="radio"] { position: absolute; opacity: 0; width: 0; height: 0; }
+  .priority-option label {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 12px 14px; border: 1px solid var(--border); border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-family: var(--mono); letter-spacing: 1px;
+    transition: all 0.15s; background: var(--surface); white-space: nowrap;
+  }
+  .priority-option input:checked + label { border-color: var(--accent); background: rgba(232,200,74,0.08); color: var(--accent); }
+  .priority-option.p-critical input:checked + label { border-color: var(--danger); background: rgba(232,74,74,0.08); color: var(--danger); }
+  .priority-option.p-monitor input:checked + label { border-color: var(--accent2); background: rgba(74,158,232,0.08); color: var(--accent2); }
+  .priority-error { border: 1px solid var(--danger); border-radius: 6px; padding: 4px; }
+
+  /* KP STATUS */
+  .kp-wrap { display: grid; gap: 10px; }
+  .kp-date-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .kp-extra { display: none; }
+  .kp-extra.show { display: block; }
+  .kp-extra-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+
+  /* PHOTO UPLOAD */
+  .upload-zone {
+    border: 2px dashed var(--border); border-radius: 8px; padding: 28px 24px;
+    text-align: center; cursor: pointer; transition: all 0.2s; position: relative; background: var(--surface);
+  }
+  .upload-zone:hover, .upload-zone.drag-over { border-color: var(--accent); background: rgba(232,200,74,0.04); }
+  .upload-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; padding: 0; border: none; background: transparent; width: 100%; height: 100%; }
+  .upload-icon { font-size: 28px; margin-bottom: 8px; display: block; opacity: 0.4; }
+  .upload-text { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .upload-text strong { color: var(--accent); font-weight: 500; }
+  .photo-previews { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+  .photo-thumb { position: relative; width: 80px; height: 80px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
+  .photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .photo-thumb .remove-photo {
+    position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,0.7);
+    border: none; color: #fff; width: 20px; height: 20px; border-radius: 50%;
+    font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+
+  /* SUBMIT */
+  .submit-btn {
+    width: 100%; padding: 18px;
+    background: var(--accent); color: #0d0f12;
+    border: none; border-radius: 6px;
+    font-family: var(--copper); font-size: 22px; letter-spacing: 4px;
+    cursor: pointer; transition: all 0.2s; position: relative; font-weight: 300;
+  }
+  .submit-btn:hover { background: #f0d060; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(232,200,74,0.25); }
+  .submit-btn:active { transform: translateY(0); }
+  .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+  .submit-btn .btn-loader { display: none; width: 18px; height: 18px; border: 2px solid rgba(0,0,0,0.3); border-top-color: #000; border-radius: 50%; animation: spin 0.6s linear infinite; margin: 0 auto; }
+  .submit-btn.loading .btn-text { display: none; }
+  .submit-btn.loading .btn-loader { display: block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* VALIDATION SUMMARY */
+  .validation-banner {
+    display: none;
+    background: rgba(232,74,74,0.1);
+    border: 1px solid var(--danger);
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 24px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--danger);
+    letter-spacing: 1px;
+  }
+  .validation-banner.show { display: block; }
+
+  /* SUCCESS */
+  .success-screen { display: none; text-align: center; padding: 80px 24px; max-width: 500px; margin: 0 auto; }
+  .success-screen.show { display: block; animation: slideIn 0.5s ease; }
+  .success-icon { width: 72px; height: 72px; border-radius: 50%; background: rgba(74,232,122,0.1); border: 2px solid var(--success); display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto 24px; }
+  .success-title { font-family: var(--copper); font-size: 36px; letter-spacing: 4px; color: var(--success); margin-bottom: 12px; font-weight: 300; }
+  .success-msg { color: var(--muted); font-size: 15px; line-height: 1.7; }
+  .new-report-btn { margin-top: 32px; padding: 14px 32px; background: transparent; border: 1px solid var(--border); color: var(--text); border-radius: 6px; font-family: var(--mono); font-size: 13px; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; }
+  .new-report-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ADMIN */
+  .admin-header-bar { background: rgba(232,200,74,0.06); border-bottom: 1px solid rgba(232,200,74,0.15); padding: 10px 32px; font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: 2px; display: flex; align-items: center; gap: 8px; }
+  .admin-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .admin-container { max-width: 960px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  /* ADMIN LOGIN */
+  .admin-login { max-width: 380px; margin: 80px auto; padding: 0 24px; text-align: center; }
+  .admin-login-title { font-family: var(--copper); font-size: 42px; letter-spacing: 5px; margin-bottom: 6px; font-weight: 300; }
+  .admin-login-sub { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 2px; margin-bottom: 32px; }
+  .admin-login input { margin-bottom: 12px; text-align: center; letter-spacing: 4px; font-family: var(--mono); }
+  .admin-login-btn { width: 100%; padding: 14px; background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; font-family: var(--mono); font-size: 13px; letter-spacing: 2px; cursor: pointer; transition: all 0.2s; }
+  .admin-login-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .admin-login-err { font-family: var(--mono); font-size: 12px; color: var(--danger); margin-top: 10px; display: none; }
+
+  /* REPORTS TOOLBAR */
+  .reports-toolbar {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;
+  }
+  .filter-select {
+    padding: 8px 14px; font-size: 13px; font-family: var(--mono);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); cursor: pointer;
+  }
+  .filter-select:focus { border-color: var(--accent); outline: none; }
+  .reports-count { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-left: auto; }
+  .clear-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 7px 14px; border-radius: 4px; font-family: var(--mono); font-size: 11px; cursor: pointer; letter-spacing: 1px; transition: all 0.2s; }
+  .clear-btn:hover { border-color: var(--danger); color: var(--danger); }
+
+  /* REPORT CARD */
+  .report-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 16px; transition: border-color 0.2s; }
+  .report-card:hover { border-color: #3a3d44; }
+
+  .report-card-summary {
+    padding: 18px 24px; display: flex; align-items: center; gap: 16px;
+    cursor: pointer; transition: background 0.15s; flex-wrap: wrap;
+  }
+  .report-card-summary:hover { background: var(--surface2); }
+
+  .report-chevron { color: var(--muted); font-size: 12px; transition: transform 0.2s; flex-shrink: 0; }
+  .report-card.open .report-chevron { transform: rotate(90deg); }
+
+  .report-summary-main { flex: 1; min-width: 0; }
+  .report-engineer-name { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--text); }
+  .report-summary-meta { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+  .report-summary-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; flex-wrap: wrap; }
+
+  .badge { font-family: var(--mono); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; padding: 4px 10px; border-radius: 4px; border: 1px solid; white-space: nowrap; }
+  .badge-critical { color: var(--danger); border-color: var(--danger); background: rgba(232,74,74,0.08); }
+  .badge-planned   { color: var(--accent); border-color: var(--accent); background: rgba(232,200,74,0.08); }
+  .badge-monitor   { color: var(--accent2); border-color: var(--accent2); background: rgba(74,158,232,0.08); }
+  .badge-feedback  { color: var(--success); border-color: var(--success); background: rgba(74,232,122,0.08); }
+  .report-ts { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+  /* REPORT BODY (expanded) */
+  .report-body-wrap { display: none; border-top: 1px solid var(--border); }
+  .report-card.open .report-body-wrap { display: block; }
+
+  .report-body { padding: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .report-field { }
+  .report-field.full { grid-column: 1 / -1; }
+  .report-field-label { font-family: var(--mono); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .report-field-value { font-size: 14px; line-height: 1.7; color: var(--text); white-space: pre-wrap; }
+  .report-photos { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
+  .report-photo { width: 100px; height: 80px; border-radius: 6px; object-fit: cover; border: 1px solid var(--border); cursor: pointer; transition: transform 0.2s; }
+  .report-photo:hover { transform: scale(1.05); }
+
+  /* FEEDBACK */
+  .feedback-block { border-top: 1px solid var(--border); padding: 20px 24px; background: rgba(232,200,74,0.02); }
+  .feedback-label { font-family: var(--mono); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 12px; }
+  .feedback-row { display: flex; gap: 10px; }
+  .feedback-row textarea { flex: 1; min-height: 80px; font-size: 14px; }
+  .send-feedback-btn { padding: 0 20px; background: var(--accent); color: #0d0f12; border: none; border-radius: 6px; font-family: var(--mono); font-size: 13px; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; white-space: nowrap; align-self: flex-end; height: 48px; font-weight: 600; }
+  .send-feedback-btn:hover { background: #f0d060; }
+  .send-feedback-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .feedback-sent { display: none; align-items: center; gap: 8px; font-family: var(--mono); font-size: 12px; color: var(--success); padding: 8px 0; }
+  .feedback-sent.show { display: flex; }
+
+  /* SETTINGS */
+  .settings-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 24px; margin-bottom: 32px; }
+  .settings-toggle { font-family: var(--mono); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); cursor: pointer; display: flex; align-items: center; gap: 8px; user-select: none; }
+  .settings-toggle:hover { color: var(--accent); }
+  .settings-toggle .chev { transition: transform 0.2s; }
+  .settings-toggle.open .chev { transform: rotate(90deg); }
+  .settings-body { display: none; margin-top: 20px; }
+  .settings-body.show { display: block; }
+  .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .settings-field label { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .settings-save-btn { margin-top: 16px; padding: 11px 24px; background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; font-family: var(--mono); font-size: 12px; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; }
+  .settings-save-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .settings-saved { display: none; font-family: var(--mono); font-size: 11px; color: var(--success); margin-left: 12px; }
+  .engineer-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .engineer-row span { font-family: var(--mono); font-size: 12px; min-width: 200px; color: var(--text); }
+  .engineer-row input { flex: 1; padding: 10px 14px; font-size: 13px; }
+
+  /* EMPTY */
+  .empty-state { text-align: center; padding: 60px 24px; color: var(--muted); }
+  .empty-state-icon { font-size: 40px; margin-bottom: 14px; opacity: 0.3; }
+  .empty-state-text { font-family: var(--mono); font-size: 12px; letter-spacing: 1px; }
+
+  /* LIGHTBOX */
+  .lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 1000; align-items: center; justify-content: center; cursor: pointer; }
+  .lightbox.open { display: flex; }
+  .lightbox img { max-width: 90vw; max-height: 90vh; border-radius: 8px; }
+
+  /* RESPONSIVE */
+  @media (max-width: 640px) {
+    .input-row, .report-body, .settings-grid, .kp-extra-grid, .kp-date-row { grid-template-columns: 1fr; }
+    .page-title { font-size: 32px; }
+    .form-container, .admin-container { padding: 28px 16px 60px; }
+    .header { padding: 16px 20px; }
+    .report-body { grid-template-columns: 1fr; }
+    .feedback-row { flex-direction: column; }
+    .send-feedback-btn { height: 44px; width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <img id="lightboxImg" src="" alt="">
+</div>
+
+<div class="nav-tabs">
+  <button class="nav-tab active" onclick="showNav('report', this)">Отчёт инженера</button>
+  <button class="nav-tab" onclick="showNav('admin', this)">Панель директора</button>
+</div>
+
+<!-- ══════════════════════════════════════════
+     PAGE 1 — REPORT FORM
+══════════════════════════════════════════ -->
+<div class="page active" id="page-report">
+  <div class="header">
+    <div>
+      <div class="header-title">Инженерный отчёт</div>
+      <div class="header-sub">Регион · 9 клубов</div>
+    </div>
+    <span class="header-time" id="header-clock"></span>
+  </div>
+
+  <div class="form-container">
+    <div class="page-label">// Ежедневный отчёт</div>
+    <div class="page-title">Фиксация<br>выезда</div>
+
+    <div id="report-form">
+      <div class="validation-banner" id="val-banner">Заполни все обязательные поля перед отправкой</div>
+
+      <!-- ФИО -->
+      <div class="section">
+        <div class="section-label"><span class="req">*</span> Инженер</div>
+        <div class="combo-wrap">
+          <select id="engineer-name" onchange="handleCombo(this, 'engineer-manual')">
+            <option value="">— Выбери ФИО —</option>
+            <option>Быстров Андрей</option>
+            <option>Якубштат Максим</option>
+            <option>Кокшаров Денис</option>
+            <option value="__manual__">Другой сотрудник (ввести вручную)</option>
+          </select>
+          <div class="combo-manual" id="engineer-manual-wrap">
+            <input type="text" id="engineer-manual" placeholder="Фамилия Имя" autocomplete="name">
+            <div class="combo-hint">// введи ФИО нового сотрудника</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- КЛУБ + ДАТА -->
+      <div class="section">
+        <div class="section-label"><span class="req">*</span> Клуб и дата</div>
+        <div class="input-row">
+          <div class="combo-wrap">
+            <select id="club-name" onchange="handleCombo(this, 'club-manual')">
+              <option value="">— Клуб / объект —</option>
+              <option>Модум</option>
+              <option>Марата</option>
+              <option>Кондратьевский</option>
+              <option>Зеленина</option>
+              <option>Велотрек</option>
+              <option>Девяткино</option>
+              <option>Ушинского</option>
+              <option>Новоселье</option>
+              <option>Кудрово</option>
+              <option value="__manual__">Новый объект (ввести вручную)</option>
+            </select>
+            <div class="combo-manual" id="club-manual-wrap">
+              <input type="text" id="club-manual" placeholder="Название объекта">
+            </div>
+          </div>
+          <input type="date" id="work-date" required>
+        </div>
+      </div>
+
+      <!-- ТИП РАБОТЫ -->
+      <div class="section">
+        <div class="section-label"><span class="req">*</span> Тип работы</div>
+        <div class="combo-wrap">
+          <select id="work-type" onchange="handleCombo(this, 'worktype-manual')">
+            <option value="">— Тип —</option>
+            <option>Плановый выезд</option>
+            <option>Аварийный выезд</option>
+            <option value="__manual__">Иное (ввести вручную)</option>
+          </select>
+          <div class="combo-manual" id="worktype-manual-wrap">
+            <input type="text" id="worktype-manual" placeholder="Описание типа работы">
+          </div>
+        </div>
+      </div>
+
+      <!-- ПРИОРИТЕТ -->
+      <div class="section">
+        <div class="section-label"><span class="req">*</span> Приоритет</div>
+        <div class="priority-row" id="priority-row">
+          <div class="priority-option p-critical">
+            <input type="radio" name="priority" id="p-critical" value="🔴 Критично">
+            <label for="p-critical">🔴 Критично</label>
+          </div>
+          <div class="priority-option p-planned">
+            <input type="radio" name="priority" id="p-planned" value="🟡 Плановое">
+            <label for="p-planned">🟡 Плановое</label>
+          </div>
+          <div class="priority-option p-monitor">
+            <input type="radio" name="priority" id="p-monitor" value="🔵 Мониторинг">
+            <label for="p-monitor">🔵 Мониторинг</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- ЧТО ОБСЛЕДОВАЛ -->
+      <div class="section">
+        <div class="section-label"><span class="req">*</span> Что обследовал</div>
+        <textarea id="what-inspected" placeholder="Зоны, системы, оборудование — коротко и по делу"></textarea>
+      </div>
+
+      <!-- ЗАДАЧИ -->
+      <div class="section">
+        <div class="section-label">Задачи открыты</div>
+        <textarea id="tasks-opened" placeholder="Новые задачи — каждая с коротким описанием"></textarea>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Задачи закрыты</div>
+        <textarea id="tasks-closed" placeholder="Что завершено сегодня"></textarea>
+      </div>
+
+      <!-- КП / СЧЕТА -->
+      <div class="section">
+        <div class="section-label">Статус по КП и счетам</div>
+        <div class="kp-wrap">
+          <select id="kp-status-select" onchange="handleKP(this.value)">
+            <option value="">— Выбери статус —</option>
+            <option value="requested">Запрошено, дата получения…</option>
+            <option value="not-requested">Не запрошено, требует уточнения…</option>
+            <option value="manual">Иное (ввести вручную)</option>
+          </select>
+
+          <div class="kp-extra" id="kp-requested">
+            <div class="kp-date-row">
+              <div>
+                <div style="font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:6px;text-transform:uppercase;">Дата получения КП</div>
+                <input type="date" id="kp-date">
+              </div>
+            </div>
+          </div>
+
+          <div class="kp-extra" id="kp-not-requested">
+            <textarea id="kp-comment" placeholder="Комментарий — что уточнить, с кем, до какого числа" style="min-height:80px;"></textarea>
+          </div>
+
+          <div class="kp-extra" id="kp-manual-wrap">
+            <input type="text" id="kp-manual" placeholder="Опиши статус вручную">
+          </div>
+        </div>
+      </div>
+
+      <!-- ПОДРЯДЧИКИ -->
+      <div class="section">
+        <div class="section-label">Подрядчики</div>
+        <input type="text" id="contractors" placeholder="Контакт, наименование, что обсудили">
+      </div>
+
+      <!-- НУЖНО ОТ ДИРЕКТОРА -->
+      <div class="section">
+        <div class="section-label">Требует решения директора</div>
+        <textarea id="director-needed" placeholder="Что не можешь решить сам — конкретно"></textarea>
+      </div>
+
+      <!-- ФОТО -->
+      <div class="section">
+        <div class="section-label">Фото</div>
+        <div class="upload-zone" id="upload-zone">
+          <input type="file" id="photo-input" accept="image/*" multiple>
+          <span class="upload-icon">📷</span>
+          <div class="upload-text">
+            <strong>Прикрепи фото</strong> — до и после, проблемные зоны<br>
+            <span style="font-size:12px">JPG, PNG · до 5 файлов</span>
+          </div>
+        </div>
+        <div class="photo-previews" id="photo-previews"></div>
+      </div>
+
+      <!-- EMAIL ИНЖЕНЕРА -->
+      <div class="section">
+        <div class="section-label"><span class="req">*</span> Твой email (для получения ТЗ)</div>
+        <input type="email" id="engineer-email" placeholder="engineer@mail.ru" autocomplete="email">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:5px;letter-spacing:1px;">// email сохраняется на этом устройстве автоматически</div>
+      </div>
+
+      <button class="submit-btn" id="submit-btn" onclick="submitReport()">
+        <span class="btn-text">Отправить отчёт</span>
+        <div class="btn-loader"></div>
+      </button>
+    </div>
+
+    <!-- SUCCESS -->
+    <div class="success-screen" id="success-screen">
+      <div class="success-icon">✓</div>
+      <div class="success-title">Отправлено</div>
+      <div class="success-msg">Отчёт ушёл директору.<br>ТЗ придёт на твой email.</div>
+      <button class="new-report-btn" onclick="resetForm()">Новый отчёт</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     PAGE 2 — ADMIN
+══════════════════════════════════════════ -->
+<div class="page" id="page-admin">
+
+  <!-- LOGIN -->
+  <div id="admin-login-screen">
+    <div class="admin-login">
+      <div class="admin-login-title">Директор</div>
+      <div class="admin-login-sub">// Панель управления</div>
+      <input type="password" id="admin-password" placeholder="••••••" onkeydown="if(event.key==='Enter')adminLogin()">
+      <button class="admin-login-btn" onclick="adminLogin()">Войти</button>
+      <div class="admin-login-err" id="admin-err">Неверный пароль</div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="admin-dashboard" style="display:none;">
+    <div class="admin-header-bar">
+      <div class="admin-dot"></div>
+      ИНЖЕНЕРИЯ · ПАНЕЛЬ ДИРЕКТОРА
+      <span style="margin-left:auto;color:var(--muted);" id="admin-report-count"></span>
+    </div>
+
+    <div class="admin-container">
+
+      <!-- SETTINGS (collapsible) -->
+      <div class="settings-panel">
+        <div class="settings-toggle" id="settings-toggle" onclick="toggleSettings()">
+          <span class="chev">▶</span>
+          ⚙ НАСТРОЙКИ EMAILJS И ИНЖЕНЕРЫ
+        </div>
+        <div class="settings-body" id="settings-body">
+          <div class="settings-grid" style="margin-bottom:20px;">
+            <div class="settings-field">
+              <label>Public Key (EmailJS)</label>
+              <input type="text" id="cfg-public-key" placeholder="xxxxxxxxxxxxxxxxxxx">
+            </div>
+            <div class="settings-field">
+              <label>Service ID</label>
+              <input type="text" id="cfg-service-id" placeholder="service_xxxxxxx">
+            </div>
+            <div class="settings-field">
+              <label>Template — отчёт директору</label>
+              <input type="text" id="cfg-template-report" placeholder="template_xxxxxxx">
+            </div>
+            <div class="settings-field">
+              <label>Template — ТЗ инженеру</label>
+              <input type="text" id="cfg-template-feedback" placeholder="template_xxxxxxx">
+            </div>
+            <div class="settings-field">
+              <label>Email директора</label>
+              <input type="email" id="cfg-director-email" placeholder="artem@mail.ru">
+            </div>
+            <div class="settings-field">
+              <label>Пароль панели</label>
+              <input type="password" id="cfg-password" placeholder="новый пароль">
+            </div>
+          </div>
+
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:14px;">📧 Email инженеров (для ТЗ)</div>
+          <div id="engineers-email-list">
+            <div class="engineer-row">
+              <span>Быстров Андрей</span>
+              <input type="email" id="email-0" placeholder="email@mail.ru">
+            </div>
+            <div class="engineer-row">
+              <span>Якубштат Максим</span>
+              <input type="email" id="email-1" placeholder="email@mail.ru">
+            </div>
+            <div class="engineer-row">
+              <span>Кокшаров Денис</span>
+              <input type="email" id="email-2" placeholder="email@mail.ru">
+            </div>
+          </div>
+
+          <button class="settings-save-btn" onclick="saveSettings()">Сохранить настройки</button>
+          <span class="settings-saved" id="settings-saved">✓ Сохранено</span>
+        </div>
+      </div>
+
+      <!-- FILTERS + REPORTS -->
+      <div class="reports-toolbar">
+        <div class="page-label" style="margin:0;">// Все отчёты</div>
+        <select class="filter-select" id="filter-club" onchange="renderReports()">
+          <option value="">Все клубы</option>
+          <option>Модум</option><option>Марата</option><option>Кондратьевский</option>
+          <option>Зеленина</option><option>Велотрек</option><option>Девяткино</option>
+          <option>Ушинского</option><option>Новоселье</option><option>Кудрово</option>
+        </select>
+        <select class="filter-select" id="filter-engineer" onchange="renderReports()">
+          <option value="">Все инженеры</option>
+          <option>Быстров Андрей</option>
+          <option>Якубштат Максим</option>
+          <option>Кокшаров Денис</option>
+        </select>
+        <select class="filter-select" id="filter-priority" onchange="renderReports()">
+          <option value="">Все приоритеты</option>
+          <option>🔴 Критично</option>
+          <option>🟡 Плановое</option>
+          <option>🔵 Мониторинг</option>
+        </select>
+        <span class="reports-count" id="admin-report-count2"></span>
+        <button class="clear-btn" onclick="clearReports()">Очистить</button>
+      </div>
+
+      <div id="reports-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SCRIPT
+══════════════════════════════════════════ -->
+<script>
+// ── CONFIG ─────────────────────────────────
+let CFG = {
+  publicKey: '', serviceId: '',
+  templateReport: '', templateFeedback: '',
+  directorEmail: '', password: 'artem2026',
+  engineerEmails: {}
+};
+
+function loadCfg() {
+  try { const s = localStorage.getItem('eng_cfg'); if (s) CFG = {...CFG, ...JSON.parse(s)}; } catch(e){}
+}
+function saveCfgToStorage() {
+  localStorage.setItem('eng_cfg', JSON.stringify(CFG));
+}
+
+loadCfg();
+
+// ── CLOCK ───────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('header-clock').textContent =
+    now.toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric'}) + '  ' +
+    now.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+}
+updateClock(); setInterval(updateClock, 15000);
+
+// Set today's date
+document.getElementById('work-date').value = new Date().toISOString().split('T')[0];
+
+// ── REMEMBER EMAIL ──────────────────────────
+(function() {
+  const saved = localStorage.getItem('eng_my_email');
+  if (saved) document.getElementById('engineer-email').value = saved;
+  document.getElementById('engineer-email').addEventListener('blur', function() {
+    if (this.value) localStorage.setItem('eng_my_email', this.value);
+  });
+})();
+
+// ── NAV ─────────────────────────────────────
+function showNav(tab, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + tab).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── COMBO SELECT ────────────────────────────
+function handleCombo(sel, manualId) {
+  const wrap = document.getElementById(manualId + '-wrap');
+  if (sel.value === '__manual__') {
+    wrap.classList.add('show');
+    document.getElementById(manualId).focus();
+  } else {
+    wrap.classList.remove('show');
+  }
+  sel.classList.remove('error');
+}
+
+function getComboValue(selectId, manualId) {
+  const sel = document.getElementById(selectId);
+  if (sel.value === '__manual__') {
+    return document.getElementById(manualId).value.trim();
+  }
+  return sel.value;
+}
+
+// ── KP STATUS ───────────────────────────────
+function handleKP(val) {
+  document.querySelectorAll('.kp-extra').forEach(el => el.classList.remove('show'));
+  if (val === 'requested') document.getElementById('kp-requested').classList.add('show');
+  if (val === 'not-requested') document.getElementById('kp-not-requested').classList.add('show');
+  if (val === 'manual') document.getElementById('kp-manual-wrap').classList.add('show');
+}
+
+function getKPValue() {
+  const v = document.getElementById('kp-status-select').value;
+  if (!v) return '';
+  if (v === 'requested') {
+    const d = document.getElementById('kp-date').value;
+    return 'Запрошено' + (d ? ', дата получения: ' + new Date(d).toLocaleDateString('ru-RU') : '');
+  }
+  if (v === 'not-requested') {
+    const c = document.getElementById('kp-comment').value.trim();
+    return 'Не запрошено' + (c ? '. ' + c : '');
+  }
+  if (v === 'manual') return document.getElementById('kp-manual').value.trim();
+  return '';
+}
+
+// ── PHOTO UPLOAD ────────────────────────────
+let uploadedPhotos = [];
+
+document.getElementById('photo-input').addEventListener('change', function(e) {
+  const files = Array.from(e.target.files);
+  const remaining = 5 - uploadedPhotos.length;
+  files.slice(0, remaining).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = ev => { uploadedPhotos.push({name: file.name, data: ev.target.result}); renderPreviews(); };
+    reader.readAsDataURL(file);
+  });
+  this.value = '';
+});
+
+const zone = document.getElementById('upload-zone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+zone.addEventListener('drop', e => {
+  e.preventDefault(); zone.classList.remove('drag-over');
+  const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+  const dt = new DataTransfer();
+  files.forEach(f => dt.items.add(f));
+  document.getElementById('photo-input').files = dt.files;
+  document.getElementById('photo-input').dispatchEvent(new Event('change'));
+});
+
+function renderPreviews() {
+  document.getElementById('photo-previews').innerHTML = uploadedPhotos.map((p, i) => `
+    <div class="photo-thumb">
+      <img src="${p.data}" alt="">
+      <button class="remove-photo" onclick="removePhoto(${i})">×</button>
+    </div>`).join('');
+}
+function removePhoto(i) { uploadedPhotos.splice(i,1); renderPreviews(); }
+
+// ── VALIDATION ──────────────────────────────
+function validateForm() {
+  let ok = true;
+  const banner = document.getElementById('val-banner');
+
+  // Engineer
+  const engSel = document.getElementById('engineer-name');
+  const engMan = document.getElementById('engineer-manual');
+  if (!engSel.value || (engSel.value === '__manual__' && !engMan.value.trim())) {
+    engSel.classList.add('error'); engMan.classList.add('error'); ok = false;
+  } else { engSel.classList.remove('error'); engMan.classList.remove('error'); }
+
+  // Club
+  const clubSel = document.getElementById('club-name');
+  const clubMan = document.getElementById('club-manual');
+  if (!clubSel.value || (clubSel.value === '__manual__' && !clubMan.value.trim())) {
+    clubSel.classList.add('error'); ok = false;
+  } else { clubSel.classList.remove('error'); }
+
+  // Date
+  const dateEl = document.getElementById('work-date');
+  if (!dateEl.value) { dateEl.classList.add('error'); ok = false; } else dateEl.classList.remove('error');
+
+  // Work type
+  const typeSel = document.getElementById('work-type');
+  const typeMan = document.getElementById('worktype-manual');
+  if (!typeSel.value || (typeSel.value === '__manual__' && !typeMan.value.trim())) {
+    typeSel.classList.add('error'); ok = false;
+  } else typeSel.classList.remove('error');
+
+  // Priority
+  const prio = document.querySelector('input[name="priority"]:checked');
+  const prioRow = document.getElementById('priority-row');
+  if (!prio) { prioRow.classList.add('priority-error'); ok = false; }
+  else prioRow.classList.remove('priority-error');
+
+  // What inspected
+  const insp = document.getElementById('what-inspected');
+  if (!insp.value.trim()) { insp.classList.add('error'); ok = false; } else insp.classList.remove('error');
+
+  // Email
+  const email = document.getElementById('engineer-email');
+  if (!email.value.trim() || !email.value.includes('@')) {
+    email.classList.add('error'); ok = false;
+  } else email.classList.remove('error');
+
+  if (!ok) { banner.classList.add('show'); window.scrollTo({top:0,behavior:'smooth'}); }
+  else banner.classList.remove('show');
+
+  return ok;
+}
+
+// ── SUBMIT ──────────────────────────────────
+async function submitReport() {
+  if (!validateForm()) return;
+
+  const btn = document.getElementById('submit-btn');
+  btn.classList.add('loading'); btn.disabled = true;
+
+  const data = collectFormData();
+
+  // Save to Firebase
+  const reportData = {...data, id: Date.now(), ts: new Date().toISOString()};
+  try {
+    if (window._fbReady) {
+      await window._addDoc(window._col('reports'), reportData);
+    }
+  } catch(e) { console.warn('Firebase save error:', e); }
+
+  // Send email
+  try {
+    if (CFG.publicKey && CFG.serviceId && CFG.templateReport) {
+      emailjs.init(CFG.publicKey);
+      await emailjs.send(CFG.serviceId, CFG.templateReport, buildEmailParams(data));
+    }
+  } catch(e) { console.warn('EmailJS:', e); }
+
+  btn.classList.remove('loading'); btn.disabled = false;
+  document.getElementById('report-form').style.display = 'none';
+  document.getElementById('success-screen').classList.add('show');
+}
+
+function collectFormData() {
+  return {
+    engineer: getComboValue('engineer-name','engineer-manual'),
+    club: getComboValue('club-name','club-manual'),
+    workType: getComboValue('work-type','worktype-manual'),
+    date: document.getElementById('work-date').value,
+    priority: document.querySelector('input[name="priority"]:checked')?.value || '',
+    inspected: document.getElementById('what-inspected').value.trim(),
+    tasksOpened: document.getElementById('tasks-opened').value.trim(),
+    tasksClosed: document.getElementById('tasks-closed').value.trim(),
+    kpStatus: getKPValue(),
+    contractors: document.getElementById('contractors').value.trim(),
+    directorNeeded: document.getElementById('director-needed').value.trim(),
+    engineerEmail: document.getElementById('engineer-email').value.trim(),
+    photos: uploadedPhotos.map(p => p.data),
+    photoCount: uploadedPhotos.length
+  };
+}
+
+function buildEmailParams(d) {
+  const dt = new Date(d.date).toLocaleDateString('ru-RU');
+  return {
+    to_email: CFG.directorEmail,
+    from_name: d.engineer,
+    subject: `[Отчёт] ${d.engineer} · ${d.club} · ${dt}`,
+    report_text: [
+      'ИНЖЕНЕРНЫЙ ОТЧЁТ',
+      '═'.repeat(40),
+      `Дата: ${dt}`,
+      `Инженер: ${d.engineer}`,
+      `Клуб: ${d.club}`,
+      `Тип работы: ${d.workType}`,
+      `Приоритет: ${d.priority}`,
+      '═'.repeat(40),
+      '',
+      'ЧТО ОБСЛЕДОВАЛ:',
+      d.inspected,
+      '',
+      'ЗАДАЧИ ОТКРЫТЫ:',
+      d.tasksOpened || '—',
+      '',
+      'ЗАДАЧИ ЗАКРЫТЫ:',
+      d.tasksClosed || '—',
+      '',
+      'КП / СЧЕТА:',
+      d.kpStatus || '—',
+      '',
+      'ПОДРЯДЧИКИ:',
+      d.contractors || '—',
+      '',
+      'ТРЕБУЕТ РЕШЕНИЯ ДИРЕКТОРА:',
+      d.directorNeeded || '—',
+      '',
+      `Фото: ${d.photoCount} шт.`,
+      `Email инженера: ${d.engineerEmail}`,
+      '═'.repeat(40)
+    ].join('\n'),
+    engineer_email: d.engineerEmail
+  };
+}
+
+function resetForm() {
+  document.getElementById('report-form').style.display = 'block';
+  document.getElementById('success-screen').classList.remove('show');
+  document.getElementById('report-form').querySelectorAll('select').forEach(s => { if(s.id !== 'kp-status-select') s.value = ''; });
+  document.getElementById('kp-status-select').value = '';
+  document.querySelectorAll('.combo-manual').forEach(el => el.classList.remove('show'));
+  document.querySelectorAll('.kp-extra').forEach(el => el.classList.remove('show'));
+  document.getElementById('report-form').querySelectorAll('textarea').forEach(t => t.value = '');
+  document.getElementById('report-form').querySelectorAll('input[type=text],input[type=email]').forEach(i => i.value = '');
+  document.querySelectorAll('input[name="priority"]').forEach(r => r.checked = false);
+  document.getElementById('work-date').value = new Date().toISOString().split('T')[0];
+  // restore email
+  const saved = localStorage.getItem('eng_my_email');
+  if (saved) document.getElementById('engineer-email').value = saved;
+  uploadedPhotos = []; renderPreviews();
+  document.getElementById('val-banner').classList.remove('show');
+}
+
+// ── ADMIN ────────────────────────────────────
+function adminLogin() {
+  const pw = document.getElementById('admin-password').value;
+  if (pw === CFG.password) {
+    document.getElementById('admin-login-screen').style.display = 'none';
+    document.getElementById('admin-dashboard').style.display = 'block';
+    loadSettingsFields();
+    if (window._startReportsListener) window._startReportsListener();
+    else renderReports();
+  } else {
+    document.getElementById('admin-err').style.display = 'block';
+    document.getElementById('admin-password').classList.add('error');
+    setTimeout(() => {
+      document.getElementById('admin-err').style.display = 'none';
+      document.getElementById('admin-password').classList.remove('error');
+    }, 2000);
+  }
+}
+
+function toggleSettings() {
+  const toggle = document.getElementById('settings-toggle');
+  const body = document.getElementById('settings-body');
+  toggle.classList.toggle('open');
+  body.classList.toggle('show');
+}
+
+function loadSettingsFields() {
+  document.getElementById('cfg-public-key').value = CFG.publicKey || '';
+  document.getElementById('cfg-service-id').value = CFG.serviceId || '';
+  document.getElementById('cfg-template-report').value = CFG.templateReport || '';
+  document.getElementById('cfg-template-feedback').value = CFG.templateFeedback || '';
+  document.getElementById('cfg-director-email').value = CFG.directorEmail || '';
+  const names = ['Быстров Андрей','Якубштат Максим','Кокшаров Денис'];
+  names.forEach((n,i) => {
+    document.getElementById('email-'+i).value = CFG.engineerEmails[n] || '';
+  });
+}
+
+function saveSettings() {
+  CFG.publicKey = document.getElementById('cfg-public-key').value.trim();
+  CFG.serviceId = document.getElementById('cfg-service-id').value.trim();
+  CFG.templateReport = document.getElementById('cfg-template-report').value.trim();
+  CFG.templateFeedback = document.getElementById('cfg-template-feedback').value.trim();
+  CFG.directorEmail = document.getElementById('cfg-director-email').value.trim();
+  const newPw = document.getElementById('cfg-password').value;
+  if (newPw) CFG.password = newPw;
+  const names = ['Быстров Андрей','Якубштат Максим','Кокшаров Денис'];
+  names.forEach((n,i) => { CFG.engineerEmails[n] = document.getElementById('email-'+i).value.trim(); });
+  saveCfgToStorage();
+  const el = document.getElementById('settings-saved');
+  el.style.display = 'inline';
+  setTimeout(() => el.style.display = 'none', 2500);
+}
+
+// ── RENDER REPORTS ──────────────────────────
+function renderReports() {
+  let reports = window._cachedReports ? [...window._cachedReports] : [];
+
+  const fClub = document.getElementById('filter-club')?.value || '';
+  const fEng  = document.getElementById('filter-engineer')?.value || '';
+  const fPrio = document.getElementById('filter-priority')?.value || '';
+
+  if (fClub) reports = reports.filter(r => r.club === fClub);
+  if (fEng)  reports = reports.filter(r => r.engineer === fEng);
+  if (fPrio) reports = reports.filter(r => r.priority === fPrio);
+
+  const count = reports.length;
+  if (document.getElementById('admin-report-count')) document.getElementById('admin-report-count').textContent = count + ' отчётов';
+  if (document.getElementById('admin-report-count2')) document.getElementById('admin-report-count2').textContent = count + ' отчётов';
+
+  const container = document.getElementById('reports-list');
+  if (!container) return;
+
+  if (!count) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-text">Отчётов нет</div></div>`;
+    return;
+  }
+
+  container.innerHTML = reports.map((r, idx) => {
+    const dt = new Date(r.ts).toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric'});
+    const tm = new Date(r.ts).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+    const prioClass = r.priority?.includes('Критично') ? 'badge-critical' : r.priority?.includes('Мониторинг') ? 'badge-monitor' : 'badge-planned';
+    const photos = (r.photos || []).slice(0,8);
+    const hasFeedback = !!r.feedback;
+
+    return `
+    <div class="report-card" id="card-${r._docId || r.id}">
+      <div class="report-card-summary" onclick="toggleCard('${r._docId || r.id}')">
+        <span class="report-chevron">▶</span>
+        <div class="report-summary-main">
+          <div class="report-engineer-name">${r.engineer}</div>
+          <div class="report-summary-meta">${r.club} · ${r.workType} · ${dt} ${tm}</div>
+        </div>
+        <div class="report-summary-right">
+          <span class="badge ${prioClass}">${r.priority}</span>
+          ${hasFeedback ? '<span class="badge badge-feedback">ТЗ отправлено</span>' : ''}
+        </div>
+      </div>
+
+      <div class="report-body-wrap">
+        <div class="report-body">
+          <div class="report-field">
+            <div class="report-field-label">Что обследовал</div>
+            <div class="report-field-value">${r.inspected || '—'}</div>
+          </div>
+          <div class="report-field">
+            <div class="report-field-label">Требует решения директора</div>
+            <div class="report-field-value">${r.directorNeeded || '—'}</div>
+          </div>
+          <div class="report-field">
+            <div class="report-field-label">Задачи открыты</div>
+            <div class="report-field-value">${r.tasksOpened || '—'}</div>
+          </div>
+          <div class="report-field">
+            <div class="report-field-label">Задачи закрыты</div>
+            <div class="report-field-value">${r.tasksClosed || '—'}</div>
+          </div>
+          ${r.kpStatus ? `<div class="report-field"><div class="report-field-label">КП / Счета</div><div class="report-field-value">${r.kpStatus}</div></div>` : ''}
+          ${r.contractors ? `<div class="report-field"><div class="report-field-label">Подрядчики</div><div class="report-field-value">${r.contractors}</div></div>` : ''}
+          ${photos.length ? `<div class="report-photos">${photos.map(s=>`<img class="report-photo" src="${s}" onclick="openLightbox('${s}')">`).join('')}</div>` : ''}
+        </div>
+
+        <div class="feedback-block">
+          <div class="feedback-label">↳ ТЗ ИНЖЕНЕРУ — ${r.engineer} · ${r.engineerEmail}</div>
+          ${hasFeedback ? `
+            <div class="feedback-sent show">✓ ТЗ отправлено · ${new Date(r.feedbackSent).toLocaleDateString('ru-RU')}</div>
+            <div style="margin-top:10px;padding:12px;background:var(--surface2);border-radius:6px;font-size:13px;color:var(--text);font-family:var(--mono);white-space:pre-wrap;">${r.feedback}</div>
+            <button style="margin-top:10px;background:none;border:1px solid var(--border);color:var(--muted);padding:8px 16px;border-radius:4px;font-family:var(--mono);font-size:11px;cursor:pointer;letter-spacing:1px;" onclick="reopenFeedback('${r._docId}')">Отправить новое ТЗ</button>
+          ` : `
+            <div class="feedback-row" id="fb-row-${r._docId}">
+              <textarea id="fb-text-${r._docId}" placeholder="Напиши задание — инженер получит на email"></textarea>
+              <button class="send-feedback-btn" id="fb-btn-${r._docId}" onclick="sendFeedback('${r._docId}','${r.engineer}','${r.engineerEmail}')">
+                Отправить
+              </button>
+            </div>
+          `}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleCard(id) {
+  const el = document.getElementById('card-' + id);
+  if(el) el.classList.toggle('open');
+}
+
+async function reopenFeedback(docId) {
+  try {
+    if (window._fbReady) {
+      await window._updateDoc(window._docRef('reports', docId), { feedback: null, feedbackSent: null });
+    }
+  } catch(e) { console.warn('Firebase reopen error:', e); }
+  setTimeout(() => {
+    const card = document.getElementById('card-' + docId);
+    if (card) card.classList.add('open');
+  }, 300);
+}
+
+async function sendFeedback(reportId, engineer, engineerEmailFromReport) {
+  const text = (document.getElementById('fb-text-' + reportId) || {}).value?.trim();
+  if (!text) return;
+
+  const btn = document.getElementById('fb-btn-' + reportId);
+  if(btn){ btn.disabled = true; btn.textContent = '...'; }
+
+  const toEmail = CFG.engineerEmails[engineer] || engineerEmailFromReport;
+
+  try {
+    if (CFG.publicKey && CFG.serviceId && CFG.templateFeedback && toEmail) {
+      emailjs.init(CFG.publicKey);
+      await emailjs.send(CFG.serviceId, CFG.templateFeedback, {
+        to_email: toEmail,
+        to_name: engineer,
+        from_name: 'Директор региона',
+        subject: `ТЗ от директора · ${new Date().toLocaleDateString('ru-RU')}`,
+        feedback_text: text
+      });
+    }
+  } catch(e) { console.warn('EmailJS feedback:', e); }
+
+  // Save feedback to Firebase
+  try {
+    if (window._fbReady) {
+      await window._updateDoc(window._docRef('reports', reportId), { feedback: text, feedbackSent: new Date().toISOString() });
+    }
+  } catch(e) { console.warn('Firebase feedback save error:', e); }
+  setTimeout(() => {
+    const card = document.getElementById('card-' + reportId);
+    if (card) card.classList.add('open');
+  }, 300);
+}
+
+async function clearReports() {
+  if (!confirm('Очистить все отчёты?')) return;
+  try {
+    if (window._fbReady && window._cachedReports) {
+      for (const r of window._cachedReports) {
+        await window._deleteDoc(window._docRef('reports', r._docId));
+      }
+    }
+  } catch(e) { console.warn('Firebase clear error:', e); }
+}
+
+// ── LIGHTBOX ─────────────────────────────────
+function openLightbox(src) {
+  document.getElementById('lightboxImg').src = src;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() { document.getElementById('lightbox').classList.remove('open'); }
+</script>
+</body>
+</html>
